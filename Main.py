@@ -1,10 +1,10 @@
 class Task:
-    def __init__(self, ID, parents, machine, start_date, unitDuration):
+    def __init__(self, ID, parents, machine, start_date, end_date):
         self.ID = ID
         self.parents = parents
         self.machine = machine
-        self.unit_duration = unitDuration
         self.start_date = start_date
+        self.end_date = end_date
         self.done = False
 
 
@@ -13,11 +13,7 @@ class Machine:
         self.ID = ID
         self.tasks = []
         self.task = None
-        self.start_date = 0
         self.end_date = 0
-
-    def associateTask(self, task):
-        self.tasks.append(task)
 
     def startTask(self, task, date):
         self.task = task
@@ -30,32 +26,9 @@ class Machine:
         self.startDate = 0
         self.endDate = 0
 
-    def selectTaskToStart(self, date):
-        for task in self.tasks:
-            if task.done == False:
-                print(task)
-                return task
-        return None
-
-
-# Group of machines
-class Processor:
-    def __init__(self):
-        self.machines = dict()
-
-    def getMachine(self, ID):
-        return self.machines.get(ID, None)
-
-    def newMachine(self, ID):
-        machine = self.getMachine(ID)
-        if machine == None:
-            machine = Machine(ID)
-            self.machines[ID] = machine
-        return machine
-
-    def newTask(self, ID, parents, machine, date, unitDuration):
-        task = Task(ID, parents, machine, date, unitDuration)
-        machine.associateTask(task)
+    def newTask(self, ID, parents, date, end_date):
+        task = Task(ID, parents, self, date, end_date)
+        self.tasks.append(task)
         return task
 
 
@@ -72,16 +45,13 @@ class Schedule:
         self.next_event_ID = 0
         self.events = []
 
-    def isEmpty(self):
-        return len(self.events) == 0
-
     def getNextEvent(self):
-        if self.isEmpty():
+        if len(self.events) == 0:
             return None
         return self.events[0]
 
     def dequeueNextEvent(self):
-        if self.isEmpty():
+        if len(self.events) == 0:
             return None
         return self.events.pop(0)
 
@@ -109,23 +79,35 @@ class Schedule:
         event = Event(self.next_event_ID, "end-task", task, date)
         self.insertEvent(event)
 
+    def print(self):
+        for event in self.events:
+            print("Event " + str(event.type) + " ID " + str(event.ID) + " scheduled at " + str(event.date))
+
 
 class Simulator:
-    def __init__(self, processor):
-        self.processor = processor
+    def __init__(self, machines):
+        self.machines = machines
         self.schedule = Schedule()
         self.print_trace = False
 
     def simulationLoop(self):
         last_date = 0
-        while not self.schedule.isEmpty():
+        while not len(self.schedule.events) == 0:
             event = self.schedule.dequeueNextEvent()
             self.fireEvent(event)
             next_event = self.schedule.getNextEvent()
             if next_event == None or next_event.date > event.date:
-                self.lookForTaskToStartInProcessor(event.date)
+                print("Next time point or end of simulation")
             last_date = event.date
         return last_date
+
+    def loop(self):
+        current_time = 0
+        while not len(self.schedule.events) == 0:
+            for event in self.schedule.events:
+                if event.date == current_time
+                    event.task.machine.startTask(event.task, current_time)
+            current_time += 1
 
     # Effectively calls an event
     def fireEvent(self, event):
@@ -139,48 +121,40 @@ class Simulator:
             if self.print_trace:
                 print(str(event.ID) + "@" + str(event.date) + ": end task " + str(event.task.ID))
 
-    def lookForTaskToStartInProcessor(self, date):
-        for machine in self.processor.machines.values():
-            self.lookForTaskToStartInMachine(machine, date)
-
-    def lookForTaskToStartInMachine(self, machine, date):
-        selection = machine.selectTaskToStart(date)
-        if selection == None:
-            return
-        self.schedule.newStartTaskEvent(selection, date)
-
     # Go through the machines, extract the tasks and add them to the schedule
     def loadTasks(self):
-        for i in range(len(self.processor.machines)):
-            machine = self.processor.getMachine(i)
+        for machine in self.machines:
+            print("Machine " + str(machine.ID))
             for task in machine.tasks:
+                print("    Task " + str(task.ID))
                 this_date = task.start_date
                 self.schedule.newStartTaskEvent(task, this_date)
                 self.schedule.newEndTaskEvent(task, this_date + task.unit_duration)
 
 
 # =============================================================================
-processor = Processor()
+machine0 = Machine(0)
+machine1 = Machine(1)
+machine2 = Machine(2)
+machine3 = Machine(3)
 
-machine0 = processor.newMachine(0)
-machine1 = processor.newMachine(1)
-machine2 = processor.newMachine(2)
-machine3 = processor.newMachine(3)
+MACHINES = [machine0, machine1, machine2, machine3]
 
-processor.newTask(0, [], machine0, 0, 5)
-processor.newTask(1, [0], machine0, 5, 5)
-processor.newTask(2, [0], machine1, 5, 5)
-processor.newTask(3, [0], machine2, 5, 5)
-processor.newTask(4, [0], machine3, 5, 5)
-processor.newTask(5, [1], machine0, 10, 5)
-processor.newTask(6, [6], machine1, 10, 5)
-processor.newTask(7, [3], machine2, 10, 5)
-processor.newTask(8, [3, 4], machine3, 15, 5)
+machine0.newTask(0, [], 0, 5)
+machine0.newTask(1, [0], 5, 10)
+machine1.newTask(2, [0], 5, 10)
+machine2.newTask(3, [0], 5, 10)
+machine3.newTask(4, [0], 5, 10)
+machine0.newTask(5, [1], 10, 15)
+machine1.newTask(6, [6], 10, 15)
+machine2.newTask(7, [3], 10, 15)
+machine3.newTask(8, [3, 4], 15, 20)
 
 # The simulator needs to check the execution goes as planned i.e. that a given
 # tasks' parents are done executing before it is, itself, executed
-simulator = Simulator(processor)
+simulator = Simulator(MACHINES)
 
 simulator.loadTasks()
-last_date = simulator.simulationLoop()
-print("Computation completed at " + str(last_date))
+simulator.schedule.print()
+# last_date = simulator.simulationLoop()
+# print("Computation completed at " + str(last_date))
